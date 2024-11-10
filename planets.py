@@ -6,7 +6,7 @@ import sys
 pygame.init()
 
 # Constants
-WIDTH, HEIGHT = 1000, 1000
+WIDTH, HEIGHT = 1920, 1200
 CENTER = (WIDTH // 2, HEIGHT // 2)  # Center of screen
 BG_COLOR = (0, 0, 0)  # Black background
 GRAVITATIONAL_CONSTANT = 5  # Gravity constant
@@ -205,6 +205,13 @@ def main():
                     mouse_x, mouse_y = pygame.mouse.get_pos()
                     new_planet = GhostPlanet(mouse_x, mouse_y, MIN_RADIUS)
                     planets.append(new_planet)
+                
+                elif event.key == pygame.K_g:
+                    # Create a grid of Ghost planets
+                    for x in range(0, WIDTH, 70):
+                        for y in range(0, HEIGHT, 70):
+                            ghost_planet = GhostPlanet(x, y, MIN_RADIUS)
+                            planets.append(ghost_planet)
 
         if creating_planet:
             current_time = pygame.time.get_ticks()
