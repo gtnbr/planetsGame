@@ -9,7 +9,7 @@ pygame.init()
 WIDTH, HEIGHT = 1920, 1200
 CENTER = (WIDTH // 2, HEIGHT // 2)  # Center of screen
 BG_COLOR = (0, 0, 0)  # Black background
-GRAVITATIONAL_CONSTANT = 5  # Gravity constant
+GRAVITATIONAL_CONSTANT = 10  # Gravity constant
 MASS_MULTIPLIER = 1  # Mass multiplier for planet calculations
 TIME_STEP = 1  # Time step for movement calculations
 MIN_RADIUS = 5  # Minimum planet radius
@@ -25,8 +25,8 @@ clock = pygame.time.Clock()  # Used to limit frame rate
 def get_color_from_radius(radius):
     max_radius_for_color = 200  # Max radius for color scaling
     factor = min(1, radius / max_radius_for_color)  # Scale factor for color
-    r = int(128 + factor * 127)  # Red color component
-    g = int(0)  # Green color component
+    r = int(0)  # Red color component
+    g = int(128 + factor * 127)  # Green color component
     b = int(128 - factor * 128)  # Blue color component
     return (r, g, b)  # Return color as RGB tuple
 
@@ -45,7 +45,11 @@ class Planet:
         self.is_collidable = True  # Flag for collision detection
 
     def apply_gravity(self, other):
-        if other.is_collidable:  # Skip non-collidable planets
+        # Check if the other planet is a ghost; skip if true
+        if isinstance(other, GhostPlanet):
+            return  # Normal planets should not be affected by ghost planets
+
+        if other.is_collidable:  # Continue if the other planet is collidable
             dx = other.x - self.x  # X distance to other planet
             dy = other.y - self.y  # Y distance to other planet
             distance = math.sqrt(dx ** 2 + dy ** 2) + 1e-2  # Distance between planets
@@ -58,23 +62,23 @@ class Planet:
             self.ax += ax  # Add to planet's total x acceleration
             self.ay += ay  # Add to planet's total y acceleration
 
-    def apply_gravity_to_center(self):
-        if self.is_largest:  # Only apply to the largest planet
-            dx = CENTER[0] - self.x  # X distance to center
-            dy = CENTER[1] - self.y  # Y distance to center
-            distance = math.sqrt(dx ** 2 + dy ** 2) + 1e-2  # Distance to center
+    # def apply_gravity_to_center(self):
+    #     if self.is_largest:  # Only apply to the largest planet
+    #         dx = CENTER[0] - self.x  # X distance to center
+    #         dy = CENTER[1] - self.y  # Y distance to center
+    #         distance = math.sqrt(dx ** 2 + dy ** 2) + 1e-2  # Distance to center
 
-            # Stop gravity if within threshold distance
-            if distance < CENTER_THRESHOLD:
-                return
+    #         # Stop gravity if within threshold distance
+    #         if distance < CENTER_THRESHOLD:
+    #             return
 
-            force = 0.5 * GRAVITATIONAL_CONSTANT * self.mass * self.mass / distance ** 2  # Gravity force
+    #         force = 0.5 * GRAVITATIONAL_CONSTANT * self.mass * self.mass / distance ** 2  # Gravity force
 
-            ax = force * dx / (distance * self.mass)  # X acceleration
-            ay = force * dy / (distance * self.mass)  # Y acceleration
+    #         ax = force * dx / (distance * self.mass)  # X acceleration
+    #         ay = force * dy / (distance * self.mass)  # Y acceleration
 
-            self.ax += ax  # Add to planet's x acceleration
-            self.ay += ay  # Add to planet's y acceleration
+    #         self.ax += ax  # Add to planet's x acceleration
+    #         self.ay += ay  # Add to planet's y acceleration
 
     def update_position(self, dt):
         self.vx += self.ax * dt  # Update x velocity
@@ -109,6 +113,33 @@ class Planet:
 
     def draw(self, surface):
         pygame.draw.circle(surface, self.color, (int(self.x), int(self.y)), self.radius)  # Draw planet
+
+class Sun(Planet):
+    def __init__(self):
+        # Initialize as a planet at the center with a large radius and zero initial velocity
+        super().__init__(x=CENTER[0], y=CENTER[1], radius=40, vx=0, vy=0)
+        self.color = (255, 223, 100)  # Bright yellow color for the sun
+        self.mass = self.radius * MASS_MULTIPLIER * 100  # Larger mass for stronger gravity
+        self.is_collidable = False  # The sun does not collide with planets
+
+    def apply_gravity(self, other):
+        # Apply double gravitational force to other planets
+        dx = self.x - other.x
+        dy = self.y - other.y
+        distance = math.sqrt(dx ** 2 + dy ** 2) + 1e-2
+
+        # Double the gravitational force
+        force = 2 * GRAVITATIONAL_CONSTANT * self.mass * other.mass / distance ** 2
+
+        ax = force * dx / (distance * other.mass)
+        ay = force * dy / (distance * other.mass)
+
+        other.ax += ax
+        other.ay += ay
+
+    def update_position(self, dt):
+        # Override position update to keep the Sun fixed at the center
+        self.x, self.y = CENTER
 
 class NonCollidingPlanet(Planet):
     def __init__(self, x, y, radius, vx=0, vy=0):
@@ -193,8 +224,17 @@ def main():
                         largest_planet.is_largest = True
 
             elif event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_SPACE:  # Space clears all planets
+                if event.key == pygame.K_r:  # R clears all planets
                    planets.clear()
+
+                elif event.key == pygame.K_SPACE:
+                    v_dict = {p: [p.vx, p.vy, p.ax, p.ay] for p in planets}
+                    for p in planets:
+                        p.vx = 0
+                        p.vy = 0
+                        p.ax = 0
+                        p.ay = 0
+                        
 
                 elif event.key == pygame.K_p:  # 'p' creates non-collidable planet
                     mouse_x, mouse_y = pygame.mouse.get_pos()
@@ -212,6 +252,10 @@ def main():
                         for y in range(0, HEIGHT, 70):
                             ghost_planet = GhostPlanet(x, y, MIN_RADIUS)
                             planets.append(ghost_planet)
+                
+                elif event.key == pygame.K_s:  # 's' creates sun planet
+                    sun = Sun(MIN_RADIUS)
+                    planets.append(sun)
 
         if creating_planet:
             current_time = pygame.time.get_ticks()
@@ -221,7 +265,7 @@ def main():
             pygame.draw.circle(screen, get_color_from_radius(current_radius), creation_start_pos, current_radius, 2)
 
         if setting_velocity:
-            mouse_pos = pygame.mouse.get_pos()  # Get current mouse position
+            mouse_pos = pygame.mouse.get_pos()  # Get cmurrent mouse position
             pygame.draw.line(screen, (255, 255, 255), creation_start_pos, mouse_pos, 2)  # Draw velocity line
 
         to_remove = set()  # Set to store planets to be removed
@@ -238,7 +282,7 @@ def main():
                 if planet != other_planet:  # Apply gravity only to different planets
                     planet.apply_gravity(other_planet)
 
-            planet.apply_gravity_to_center()  # Apply gravity to the center for largest planet
+            # planet.apply_gravity_to_center()  # Apply gravity to the center for largest planet
 
         for planet in planets:
             planet.update_position(TIME_STEP)  # Update planet position
@@ -251,6 +295,7 @@ def main():
             "Left Click and Hold to Create a Planet",
             "Release to set size, then Left Click to set initial velocity"
         ]
+        
         for i, text in enumerate(instructions):
             img = font.render(text, True, (255, 255, 255))  # Render text
             screen.blit(img, (10, 10 + i * 20))  # Display text
