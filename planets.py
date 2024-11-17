@@ -6,7 +6,7 @@ import sys
 pygame.init()
 
 # Constants
-WIDTH, HEIGHT = 1920, 1200
+WIDTH, HEIGHT = 1910, 1190
 CENTER = (WIDTH // 2, HEIGHT // 2)  # Center of screen
 BG_COLOR = (0, 0, 0)  # Black background
 GRAVITATIONAL_CONSTANT = 10  # Gravity constant
@@ -62,24 +62,6 @@ class Planet:
             self.ax += ax  # Add to planet's total x acceleration
             self.ay += ay  # Add to planet's total y acceleration
 
-    # def apply_gravity_to_center(self):
-    #     if self.is_largest:  # Only apply to the largest planet
-    #         dx = CENTER[0] - self.x  # X distance to center
-    #         dy = CENTER[1] - self.y  # Y distance to center
-    #         distance = math.sqrt(dx ** 2 + dy ** 2) + 1e-2  # Distance to center
-
-    #         # Stop gravity if within threshold distance
-    #         if distance < CENTER_THRESHOLD:
-    #             return
-
-    #         force = 0.5 * GRAVITATIONAL_CONSTANT * self.mass * self.mass / distance ** 2  # Gravity force
-
-    #         ax = force * dx / (distance * self.mass)  # X acceleration
-    #         ay = force * dy / (distance * self.mass)  # Y acceleration
-
-    #         self.ax += ax  # Add to planet's x acceleration
-    #         self.ay += ay  # Add to planet's y acceleration
-
     def update_position(self, dt):
         self.vx += self.ax * dt  # Update x velocity
         self.vy += self.ay * dt  # Update y velocity
@@ -100,6 +82,9 @@ class Planet:
         return False
 
     def merge(self, other):
+        if not self.is_collidable or not other.is_collidable:
+            return
+        
         new_radius = math.sqrt(self.radius**2 + other.radius**2)  # New radius
         new_mass = self.mass + other.mass  # Combined mass
 
@@ -113,33 +98,6 @@ class Planet:
 
     def draw(self, surface):
         pygame.draw.circle(surface, self.color, (int(self.x), int(self.y)), self.radius)  # Draw planet
-
-class Sun(Planet):
-    def __init__(self):
-        # Initialize as a planet at the center with a large radius and zero initial velocity
-        super().__init__(x=CENTER[0], y=CENTER[1], radius=40, vx=0, vy=0)
-        self.color = (255, 223, 100)  # Bright yellow color for the sun
-        self.mass = self.radius * MASS_MULTIPLIER * 100  # Larger mass for stronger gravity
-        self.is_collidable = False  # The sun does not collide with planets
-
-    def apply_gravity(self, other):
-        # Apply double gravitational force to other planets
-        dx = self.x - other.x
-        dy = self.y - other.y
-        distance = math.sqrt(dx ** 2 + dy ** 2) + 1e-2
-
-        # Double the gravitational force
-        force = 2 * GRAVITATIONAL_CONSTANT * self.mass * other.mass / distance ** 2
-
-        ax = force * dx / (distance * other.mass)
-        ay = force * dy / (distance * other.mass)
-
-        other.ax += ax
-        other.ay += ay
-
-    def update_position(self, dt):
-        # Override position update to keep the Sun fixed at the center
-        self.x, self.y = CENTER
 
 class NonCollidingPlanet(Planet):
     def __init__(self, x, y, radius, vx=0, vy=0):
@@ -171,6 +129,38 @@ class GhostPlanet(NonCollidingPlanet):
 
         self.ax += ax  # Add to x acceleration
         self.ay += ay  # Add to y acceleration
+
+
+class Sun(Planet):
+    def __init__(self):
+        # Initialize as a planet at the center with a large radius and zero initial velocity
+        super().__init__(x=CENTER[0], y=CENTER[1], radius=40, vx=0, vy=0)
+        self.color = (255, 223, 100)  # Bright yellow color for the sun
+        self.mass = self.radius * MASS_MULTIPLIER * 100  # Larger mass for stronger gravity
+        self.is_collidable = False  # The sun does not collide with planets
+
+    def apply_gravity(self, other):
+        # Apply  gravitational force to other planets
+
+        dx = self.x - other.x
+        dy = self.y - other.y
+        distance = math.sqrt(dx ** 2 + dy ** 2) + 1e-2
+
+        # Double the gravitational force
+        force = GRAVITATIONAL_CONSTANT * self.mass * other.mass / distance ** 2
+
+        ax = force * dx / (distance * other.mass)
+        ay = force * dy / (distance * other.mass)
+
+        other.ax += ax
+        other.ay += ay
+
+    def merge(self, other):
+        return
+
+    def update_position(self, dt):
+        # Override position update to keep the Sun fixed at the center
+        self.x, self.y = CENTER
 
 def main():
     running = True  # Flag for simulation running
@@ -254,7 +244,7 @@ def main():
                             planets.append(ghost_planet)
                 
                 elif event.key == pygame.K_s:  # 's' creates sun planet
-                    sun = Sun(MIN_RADIUS)
+                    sun = Sun()
                     planets.append(sun)
 
         if creating_planet:
